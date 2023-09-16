@@ -1,0 +1,52 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    date (3.3.3)
+    date (3.3.3-java)
+    libis-mapi (0.3.1)
+      ruby-ole (~> 1.2, >= 1.2.8)
+      vpim (~> 13.0)
+    mail (2.8.1)
+      mini_mime (>= 0.1.1)
+      net-imap
+      net-pop
+      net-smtp
+    mini_mime (1.1.5)
+    net-imap (0.3.7)
+      date
+      net-protocol
+    net-pop (0.1.2)
+      net-protocol
+    net-protocol (0.2.1)
+      timeout
+    net-smtp (0.3.3)
+      net-protocol
+    new_rfc_2047 (1.0.0)
+    nio4r (2.5.9)
+    nio4r (2.5.9-java)
+    pdfkit (0.8.7.3)
+    puma (6.3.1)
+      nio4r (~> 2.0)
+    puma (6.3.1-java)
+      nio4r (~> 2.0)
+    rack (3.0.8)
+    roda (3.72.0)
+      rack
+    ruby-ole (1.2.12.2)
+    timeout (0.4.0)
+    vpim (13.11.11)
+
+PLATFORMS
+  universal-java-17
+  x86_64-linux
+
+DEPENDENCIES
+  libis-mapi (~> 0.3)
+  mail (~> 2.8, >= 2.8.1)
+  new_rfc_2047 (~> 1.0)
+  pdfkit (~> 0.8)
+  puma (~> 6.3)
+  roda (~> 3.72)
+
+BUNDLED WITH
+   2.4.15
