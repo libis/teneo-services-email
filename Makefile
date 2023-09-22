@@ -12,7 +12,7 @@ build:
 	docker build --tag $(IMAGE_TAG) .
 
 start:
-	docker run -d --rm -it --name $(SERVICE_NAME) -p "$(SERVICE_PORT):9292" $(IMAGE_TAG)
+	docker run -d --rm -it --name $(SERVICE_NAME) -v ./data:/data -p "$(SERVICE_PORT):9292" $(IMAGE_TAG)
 
 stop:
 	docker container stop $(SERVICE_NAME) || true

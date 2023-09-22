@@ -1,9 +1,9 @@
-ARG JRUBY_VERSION=9.4
-ARG JAVA_VERISON=jre17
-FROM jruby:${JRUBY_VERSION}-${JAVA_VERISON}
+ARG RUBY_VERSION=3.1
+ARG OS_VERISON=bullseye
+FROM ruby:${RUBY_VERSION}-${OS_VERISON}
 
 RUN apt-get update \
- && DEBIAN_FRONTEND=nonionteractive apt-get install -q -yy --no-install-recommends netbase wkhtmltopdf \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -q -yy --no-install-recommends netbase wkhtmltopdf \
  && rm -rf /var/lib/apt/lists/*
 
 ARG USER_NAME=app

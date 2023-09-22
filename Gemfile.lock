@@ -19,19 +19,20 @@ GEM
       net-protocol
     net-protocol (0.2.1)
       timeout
-    net-smtp (0.3.3)
+    net-smtp (0.4.0)
       net-protocol
     new_rfc_2047 (1.0.0)
     nio4r (2.5.9)
     nio4r (2.5.9-java)
     pdfkit (0.8.7.3)
-    puma (6.3.1)
+    puma (6.4.0)
       nio4r (~> 2.0)
-    puma (6.3.1-java)
+    puma (6.4.0-java)
       nio4r (~> 2.0)
     rack (3.0.8)
     roda (3.72.0)
       rack
+    roda-symbolized_params (0.0.2)
     ruby-ole (1.2.12.2)
     timeout (0.4.0)
     vpim (13.11.11)
@@ -47,6 +48,7 @@ DEPENDENCIES
   pdfkit (~> 0.8)
   puma (~> 6.3)
   roda (~> 3.72)
+  roda-symbolized_params (~> 0.0.2)
 
 BUNDLED WITH
    2.4.15

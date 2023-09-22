@@ -1,4 +1,6 @@
+# frozen-string-literal: true
 require 'roda'
+require 'api'
 
 class App < Roda
   route do |r|
@@ -7,19 +9,8 @@ class App < Roda
       "Hello"
     end
 
-    r.on 'msg' do
-      # /convert branch
-      r.on 'convert' do
-  
-        # /convert request
-        r.is do
-  
-          # Post /convert request
-          r.post do
-            
-          end
-        end
-      end
+    r.on 'api' do
+      r.run API
     end
   end
 end

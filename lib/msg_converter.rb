@@ -1,3 +1,4 @@
+# frozen-string-literal: true
 require 'mapi/msg'
 require 'rfc_2047'
 require 'pdfkit'
@@ -9,41 +10,54 @@ class MsgConverter
   attr_accessor :msg_file, :warnings
 
   def initialize(msg_file)
-    raise ArgumentError, "File #{msg_file} not found" unless File.exist?(msg_file) && File.readable?(msg_file)
-    @msg_file = msg_file
+    if msg_file.is_a?(Mapi::Msg)
+      @msg = msg_file
+    else
+      return {error: "File #{msg_file} not found"} unless File.exist?(msg_file)
+      @msg_file = msg_file
+    end
     @warnings = []
   end
 
-  def to_eml(filename)
+  def convert(filename, format: :EML, extract_attachments: false, recursive: false, **options)
+    result = {files: []}
     FileUtils.mkdir_p(File.dirname(filename))
+    format = format.to_s.upcase.to_sym
     File.open(filename, File::CREAT | File::TRUNC | File::WRONLY | File::SYNC | File::BINARY, 0640) do |f|
-      f.write(mime.to_s)
+      case format
+      when :EML
+        f.write(mime.to_s)
+      when :HTML
+        f.write(body)
+      when :PDF
+        pdf_options = {
+          page_size: 'A4',
+          margin_top: '10mm',
+          margin_bottom: '10mm',
+          margin_left: '10mm',
+          margin_right: '10mm',
+          dpi: 300,
+        }.merge options.slice(:page_size, :margin_top, :margin_bottom, :margin_left, :margin_right, :dpi)
+        subject = headers[:subject]
+        kit = PDFKit.new(body, title: (subject || 'message'), **pdf_options)
+        f.write(kit.to_pdf)
+      else
+        raise "Unknown target format: #{format}"
+      end
     end
+    result[:files] << filename if File.exist?(filename)
+    if extract_attachments
+      r = get_attachments("#{filename}-attachments", recursive: recursive, message_format: format)
+      result[:files] += r[:files]
+      @warnings += [result[:warnings]].flatten.compact
+    end
+    result[:warnings] = @warnings unless @warnings.empty?
+  rescue Exception => e
+    result[:error] = e.message
+    result[:backtrace] = e.backtrace
+  ensure
+    return result
   end
-
-  def to_html(filename)
-    FileUtils.mkdir_p(File.dirname(filename))
-    File.open(filename, File::CREAT | File::TRUNC | File::WRONLY | File::SYNC | File::BINARY, 0640) do |f|
-      f.write(body)
-    end
-  end
-
-  def to_pdf(filename, options = {})
-    pdf_options = {
-      page_size: 'A4',
-      margin_top: '10mm',
-      margin_bottom: '10mm',
-      margin_left: '10mm',
-      margin_right: '10mm',
-      dpi: 300,
-    }.merge options
-    FileUtils.mkdir_p(File.dirname(filename))
-    subject = headers[:subject]
-    kit = PDFKit.new(body, title: (subject || 'message'), **pdf_options)
-    File.open(filename, File::CREAT | File::TRUNC | File::WRONLY | File::SYNC | File::BINARY, 0640) do |f|
-      f.write(kit.to_pdf)
-    end
-  end  
 
   HTML_WRAPPER_TEMPLATE = '<!DOCTYPE html><html><head><style>body {font-size: 0.5cm;}</style><title>title</title></head><body>%s</body></html>'
 
@@ -90,8 +104,64 @@ class MsgConverter
     end
   end
 
-  def attachments(dirname, recursive: false)
-    
+  def attachment_names
+    att_list = attachments.dup.delete_if {|a| a.properties.attachment_hidden}
+    digits = ((att_list.count + 1)/ 10) + 1
+    i = 1
+    files = []
+    att_list.each do |a|
+      prefix = "#{"%0*d" % [digits, i]}-"
+      if sub_msg = a.instance_variable_get(:@embedded_msg)
+        # Embedded email message
+        subject = a.properties[:display_name] || sub_msg.subject || ""
+        filename = "#{prefix}#{subject}.#{message_format.to_s.downcase}"
+        files << filename
+      elsif a.filename
+        filename = "#{prefix}#{a.filename}"
+        files << filename
+      else
+        @warnings << "Attachment #{a.properties[:display_name]} cannot be saved"
+        next
+      end
+      i += 1  
+    end
+    result = {files: files}
+    result[:warnmings] = @warnings unless @warnings.empty?
+    result
+  end
+
+  def get_attachments(outdir, recursive: false, message_format: :EML, **options)
+    att_list = attachments.dup.delete_if {|a| a.properties.attachment_hidden}
+    digits = ((att_list.count + 1)/ 10) + 1
+    i = 1
+    files = []
+    att_list.each do |a|
+      prefix = "#{"%0*d" % [digits, i]}-"
+      if sub_msg = a.instance_variable_get(:@embedded_msg)
+        # Embedded email message
+        subject = a.properties[:display_name] || sub_msg.subject || ""
+        filename = File.join(outdir, "#{prefix}#{subject}.#{message_format.to_s.downcase}")
+        FileUtils.mkdir_p(File.dirname(filename))
+        converter = self.class.new(sub_msg)
+        result = converter.convert(filename, format: message_format, extract_attachments: recursive, recursive: recursive)
+        if e = result[:error]
+          return result
+        end
+        files += result[:files]
+      elsif a.filename
+        filename = File.join(outdir, "#{prefix}#{a.filename}")
+        FileUtils.mkdir_p(File.dirname(filename))
+        File.open(filename, 'wb') {|f| a.save(f)}
+        files << filename
+      else
+        @warnings << "Attachment #{a.properties[:display_name]} cannot be saved"
+        next
+      end
+      i += 1  
+    end
+    result = {files: files}
+    result[:warnmings] = @warnings unless @warnings.empty?
+    result
   end
 
   private
@@ -103,7 +173,7 @@ class MsgConverter
   def mime
     @msg_mime ||= message.to_mime
   end
-
+  
   def find_hdr(list, key)
     keys = list.keys
     if k = keys.find {|x| x.to_s =~ /^#{key}$/i}
@@ -153,7 +223,7 @@ class MsgConverter
   def embed_images(body)
     # First process plaintext cid entries (in case the plain text body was embedded in HTML)
     body.gsub!(IMG_CID_PLAIN_REGEX) do |match|
-      data = getAttachmentData(attachments, $1)
+      data = getAttachmentData($1)
       if data
         "<img src=\"data:#{data[:mime_type]};base64,#{data[:base64]}\"/>"
       else
@@ -162,7 +232,7 @@ class MsgConverter
     end
     # Then process HTML img tags with CID entries
     body.gsub!(IMG_CID_HTML_REGEX) do |match|
-      data = getAttachmentData(attachments, $1)
+      data = getAttachmentData($1)
       if data
         "data:#{data[:mime_type]};base64,#{data[:base64]}"
       else
@@ -171,8 +241,12 @@ class MsgConverter
     end
   end
 
+  def attachments
+    message.attachments
+  end
+
   def getAttachmentData(cid)
-    attachments.each do |attachment|
+    attachments do |attachment|
       if attachment.properties.attach_content_id == cid
         attachment.data.rewind
         return {
