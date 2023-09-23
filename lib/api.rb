@@ -5,8 +5,7 @@ class API < Roda
   plugin :json
   plugin :json_parser
   plugin :typecast_params
-  plugin :symbolized_params
-
+  
   route do |r|
     r.on 'msg' do
 
