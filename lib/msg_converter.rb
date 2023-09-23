@@ -7,7 +7,7 @@ require 'fileutils'
 require 'cgi'
 
 class MsgConverter
-  attr_accessor :msg_file, :warnings
+  attr_accessor :msg_file, :warnings, :inline_attachments
 
   def initialize(msg_file)
     if msg_file.is_a?(Mapi::Msg)
@@ -17,6 +17,7 @@ class MsgConverter
       @msg_file = msg_file
     end
     @warnings = []
+    @inline_attachments = []
   end
 
   def convert(filename, format: :EML, extract_attachments: false, recursive: false, **options)
@@ -111,7 +112,7 @@ class MsgConverter
   end
 
   def get_attachments(outdir, recursive: false, message_format: :EML, **options)
-    att_list = message.attachments.dup.delete_if {|a| a.properties.attachment_hidden}
+    att_list = message.attachments.dup.delete_if {|a| a.properties.attachment_hidden || @inline_attachments.include?(a.properties.attach_content_id)}
     digits = ((att_list.count + 1)/ 10) + 1
     i = 1
     files = []
@@ -237,6 +238,7 @@ class MsgConverter
   def embed_images(body)
     # First process plaintext cid entries (in case the plain text body was embedded in HTML)
     body.gsub!(IMG_CID_PLAIN_REGEX) do |match|
+      @inline_attachments << $1
       data = getAttachmentData($1)
       if data
         "<img src=\"data:#{data[:mime_type]};base64,#{data[:base64]}\"/>"
@@ -246,6 +248,7 @@ class MsgConverter
     end
     # Then process HTML img tags with CID entries
     body.gsub!(IMG_CID_HTML_REGEX) do |match|
+      @inline_attachments << $1
       data = getAttachmentData($1)
       if data
         "data:#{data[:mime_type]};base64,#{data[:base64]}"
