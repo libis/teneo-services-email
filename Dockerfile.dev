@@ -18,7 +18,4 @@ USER ${USER_NAME}
 COPY Gemfile Gemfile
 RUN bundle install
 
-COPY config.ru config.ru
-COPY lib lib
-
 CMD [ "puma", "-p", "9292" ]

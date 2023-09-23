@@ -12,7 +12,6 @@ class API < Roda
 
       # Get filename
       filename = typecast_params.nonempty_str!('filename')
-      r.params[:filename]
       filename ||= 'data/RossettaStorageIntegrityJob.msg'
       converter = MsgConverter.new(filename)
 
@@ -25,27 +24,39 @@ class API < Roda
       end
 
       r.on 'convert' do
+        
+        # Get attachments parameter
+        extract_attachments = typecast_params.bool('extract_attachments')
 
-        r.get 'to_eml' do
-          # Get output dir
-          target = "#{filename}.eml"
-          # Convert file
-          converter.convert(target, format: :EML, **r.params)
+        # Get recursion parameter
+        recursive = typecast_params.bool('recursive')
+
+        # Get target format
+        target_format = typecast_params.nonempty_str!('format').upcase.to_sym
+
+        # Get output file
+        target = "#{filename}.#{target_format.to_s.downcase}"
+
+        options = {}
+        if target_format == :PDF
+          options = typecast_params.convert!(symbolize: true) do |tp|
+            tp.nonempty_str('page_size')
+            tp.nonempty_str('margin_top')
+            tp.nonempty_str('margin_bottom')
+            tp.nonempty_str('margin_left')
+            tp.nonempty_str('margin_right')
+            tp.pos_int('dpi')
+          end.compact
         end
 
-        r.get 'to_html' do
-          # Get output dir
-          target = "#{filename}.html"
-          # Convert file
-          converter.convert(target, format: :HTML, **r.params)
+        # Convert file
+        result = converter.convert(target, format: target_format, extract_attachments: extract_attachments, recursive: recursive, **options)
+
+        if result[:error]
+          response.status = 400
         end
 
-        r.get 'to_pdf' do
-          # Get output dir
-          target = "#{filename}.pdf"
-          # Convert file
-          converter.convert(target, format: :PDF, **r.params)
-        end
+        result
 
       end
 

@@ -38,7 +38,7 @@ class MsgConverter
           margin_right: '10mm',
           dpi: 300,
         }.merge options.slice(:page_size, :margin_top, :margin_bottom, :margin_left, :margin_right, :dpi)
-        subject = headers[:subject]
+        subject = headers.dig(:headers, :subject)
         kit = PDFKit.new(body, title: (subject || 'message'), **pdf_options)
         f.write(kit.to_pdf)
       else
@@ -59,36 +59,6 @@ class MsgConverter
     return result
   end
 
-  HTML_WRAPPER_TEMPLATE = '<!DOCTYPE html><html><head><style>body {font-size: 0.5cm;}</style><title>title</title></head><body>%s</body></html>'
-
-  def body
-    @msg_body ||= begin
-      # Get the body of the message in HTML
-      body = message.properties.body_html
-      # Embed plain body in HTML as a fallback
-      body ||= HTML_WRAPPER_TEMPLATE % message.properties.body
-      # Check and fix the character encoding
-      begin
-        # Try to encode into UTF-8
-        body.encode!('UTF-8', universal_newline: true)
-      rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
-        begin
-        # If it fails, the text may be in Windows' Latin1 (ISO-8859-1)
-        body.force_encoding('ISO-8859-1').encode!('UTF-8', universal_newline: true)
-        rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError => e
-          # If that fails too, log a warning and replace the invalid/unknown with a ? character.
-          @warnings << e.message
-          body.encode!('UTF-8', universal_newline: true, invalid: :replace, undef: :replace)
-        end
-      end
-      # Add headers to the body
-      add_headers(body)
-      # Embed images
-      embed_images(body)
-      body
-    end
-  end
-
   HEADER_FIELDS = %w"From To Cc Subject Date"
 
   def headers
@@ -102,6 +72,12 @@ class MsgConverter
       end
       headers
     end
+    result = {headers: @msg_headers}
+  rescue Exception => e
+    result[:error] = e.message
+    result[:backtrace] = e.backtrace
+  ensure
+    return result
   end
 
   def attachment_names
@@ -125,13 +101,17 @@ class MsgConverter
       end
       i += 1  
     end
-    result = {files: files}
-    result[:warnmings] = @warnings unless @warnings.empty?
-    result
+    result = {attachments: files}
+    result[:warnings] = @warnings unless @warnings.empty?
+  rescue Exception => e
+    result[:error] = e.message
+    result[:backtrace] = e.backtrace
+  ensure
+    return result
   end
 
   def get_attachments(outdir, recursive: false, message_format: :EML, **options)
-    att_list = attachments.dup.delete_if {|a| a.properties.attachment_hidden}
+    att_list = message.attachments.dup.delete_if {|a| a.properties.attachment_hidden}
     digits = ((att_list.count + 1)/ 10) + 1
     i = 1
     files = []
@@ -160,8 +140,12 @@ class MsgConverter
       i += 1  
     end
     result = {files: files}
-    result[:warnmings] = @warnings unless @warnings.empty?
-    result
+    result[:warnings] = @warnings unless @warnings.empty?
+  rescue Exception => e
+    result[:error] = e.message
+    result[:backtrace] = e.backtrace
+  ensure
+    return result
   end
 
   private
@@ -172,6 +156,36 @@ class MsgConverter
 
   def mime
     @msg_mime ||= message.to_mime
+  end
+
+  HTML_WRAPPER_TEMPLATE = '<!DOCTYPE html><html><head><style>body {font-size: 0.5cm;}</style><title>title</title></head><body>%s</body></html>'
+
+  def body
+    @msg_body ||= begin
+      # Get the body of the message in HTML
+      body_r = message.properties.body_html
+      # Embed plain body in HTML as a fallback
+      body_r ||= HTML_WRAPPER_TEMPLATE % message.properties.body
+      # Check and fix the character encoding
+      begin
+        # Try to encode into UTF-8
+        body_r.encode!('UTF-8', universal_newline: true)
+      rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
+        begin
+        # If it fails, the text may be in Windows' Latin1 (ISO-8859-1)
+        body_r.force_encoding('ISO-8859-1').encode!('UTF-8', universal_newline: true)
+        rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError => e
+          # If that fails too, log a warning and replace the invalid/unknown with a ? character.
+          @warnings << e.message
+          body_r.encode!('UTF-8', universal_newline: true, invalid: :replace, undef: :replace)
+        end
+      end
+      # Add headers to the body
+      add_headers(body_r)
+      # Embed images
+      embed_images(body_r)
+      body_r
+    end
   end
   
   def find_hdr(list, key)
@@ -185,13 +199,13 @@ class MsgConverter
     nil
   end
 
-  HEADER_STYLE = '<style>.header-table {margin: 0 0 20 0;padding: 0;font-family: Arial, Helvetica, sans-serif;}.header-name {padding-right: 5px;color: #9E9E9E;text-align: right;vertical-align: top;font-size: 12px;}.header-value {font-size: 12px;}#header_fields {background: white;margin: 0;border: 1px solid #DDD;border-radius: 3px;padding: 8px;width: 100%%;box-sizing: border-box;}</style><script type="text/javascript">function timer() {try {parent.postMessage(Math.max(document.body.offsetHeight, document.body.scrollHeight), \'*\');} catch (r) {}setTimeout(timer, 10);};timer();</script>'
+  HEADER_STYLE = '<style>.header-table {margin: 0 0 20 0;padding: 0;font-family: Arial, Helvetica, sans-serif;}.header-name {padding-right: 5px;color: #9E9E9E;text-align: right;vertical-align: top;font-size: 12px;}.header-value {font-size: 12px;}#header_fields {background: white;margin: 0;border: 1px solid #DDD;border-radius: 3px;padding: 8px;width: 100%;box-sizing: border-box;}</style><script type="text/javascript">function timer() {try {parent.postMessage(Math.max(document.body.offsetHeight, document.body.scrollHeight), \'*\');} catch (r) {}setTimeout(timer, 10);};timer();</script>'
   HEADER_TABLE_TEMPLATE = '<div class="header-table"><table id="header_fields"><tbody>%s</tbody></table></div>'
   
   def add_headers(body)
     hdr_html = ''
     HEADER_FIELDS.each do |key|
-      value = headers[key.downcase.to_sym]
+      value = headers.dig(:headers, key.downcase.to_sym)
       hdr_html += hdr_html(key, value)
     end
     # Add header section to the HTML body
@@ -241,12 +255,8 @@ class MsgConverter
     end
   end
 
-  def attachments
-    message.attachments
-  end
-
   def getAttachmentData(cid)
-    attachments do |attachment|
+    message.attachments.each do |attachment|
       if attachment.properties.attach_content_id == cid
         attachment.data.rewind
         return {
