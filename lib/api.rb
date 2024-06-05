@@ -14,12 +14,8 @@ class API < Roda
       filename ||= 'data/RossettaStorageIntegrityJob.msg'
       converter = MsgConverter.new(filename)
 
-      r.get 'headers' do
-        converter.headers
-      end
-
-      r.get 'attachments' do
-        converter.attachment_names
+      r.get 'metadata' do
+        converter.metadata
       end
 
       r.on 'convert' do

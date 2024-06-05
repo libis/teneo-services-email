@@ -10,7 +10,7 @@ build:
 	docker build --tag $(IMAGE_TAG) .
 
 start:
-	docker run -d --rm -it --name $(SERVICE_NAME) $(SERVICE_MOUNTS) -p "$(SERVICE_PORT):9292" $(IMAGE_TAG)
+	docker run -d --rm -it --name $(SERVICE_NAME) $(SERVICE_MOUNTS) -p "$(SERVICE_PORT):9292" -v ./data:/app/data $(IMAGE_TAG)
 
 stop:
 	docker container stop $(SERVICE_NAME) || true
@@ -25,7 +25,7 @@ dev-build:
 	docker build --tag $(IMAGE_TAG_DEV) -f Dockerfile.dev .
 
 dev-start:
-	docker run -d --rm -it --name $(SERVICE_NAME_DEV) $(SERVICE_MOUNTS_DEV) -p "$(SERVICE_PORT_DEV):9292" $(IMAGE_TAG_DEV)
+	docker run -d --rm -it --name $(SERVICE_NAME_DEV) $(SERVICE_MOUNTS_DEV) -p "$(SERVICE_PORT_DEV):9292" -v ./data:/app/data $(IMAGE_TAG_DEV)
 
 dev-logs:
 	docker logs -f $(SERVICE_NAME_DEV)

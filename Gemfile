@@ -7,3 +7,5 @@ gem 'pdfkit', '~> 0.8'
 gem 'new_rfc_2047', '~> 1.0'
 gem 'puma', '~> 6.3'
 gem 'rerun', '~> 0.14'
+gem 'image_processing', '~> 1.12'
+ 

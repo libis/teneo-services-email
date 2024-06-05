@@ -60,6 +60,10 @@ class MsgConverter
     return result
   end
 
+  def metadata
+    headers.merge(attachments: attachment_names&.fetch(:attachments)&.compact)
+  end
+
   HEADER_FIELDS = %w"From To Cc Subject Date"
 
   def headers
@@ -82,8 +86,8 @@ class MsgConverter
   end
 
   def attachment_names
-    att_list = attachments.dup.delete_if {|a| a.properties.attachment_hidden}
-    digits = ((att_list.count + 1)/ 10) + 1
+    att_list = message.attachments.dup.delete_if {|a| a.properties.attachment_hidden}
+    digits = ((att_list.count)/ 10) + 1
     i = 1
     files = []
     att_list.each do |a|
@@ -113,7 +117,7 @@ class MsgConverter
 
   def get_attachments(outdir, recursive: false, message_format: :EML, **options)
     att_list = message.attachments.dup.delete_if {|a| a.properties.attachment_hidden || @inline_attachments.include?(a.properties.attach_content_id)}
-    digits = ((att_list.count + 1)/ 10) + 1
+    digits = ((att_list.count)/ 10) + 1
     i = 1
     files = []
     att_list.each do |a|
